@@ -39,7 +39,7 @@ def convert(keras_model, caffe_net_file, caffe_params_file):
             caffe_net[name] = L.Layer()
             input_shape=config['batch_input_shape']
             input_str = 'input: {}\ninput_dim: {}\ninput_dim: {}\ninput_dim: {}\ninput_dim: {}'.format('"' + name + '"',
-                1, input_shape[3], input_shape[1], input_shape[2])
+                                                                                                       1, input_shape[3], 227, 227)#input_shape[1], input_shape[2])
             
         
         elif layer_type=='Conv2D' or layer_type=='Convolution2D':
@@ -98,7 +98,7 @@ def convert(keras_model, caffe_net_file, caffe_params_file):
             
         elif layer_type=='Dense':
             caffe_net[name] = L.InnerProduct(caffe_net[outputs[bottom]], num_output=config['units'])
-            
+
             if config['use_bias']:
                 net_params[name] = (np.array(blobs[0]).transpose(1, 0), np.array(blobs[1]))
             else:
@@ -141,6 +141,7 @@ def convert(keras_model, caffe_net_file, caffe_params_file):
                 raise Exception('Unsupported strides')
             
             pad=0
+            print padding
             if padding=='same':
                 pad=pool_size[0]/2
                 
@@ -153,7 +154,7 @@ def convert(keras_model, caffe_net_file, caffe_params_file):
         #TODO
         
         elif layer_type=='GlobalAveragePooling2D':
-            caffe_net[name] = L.Pooling(caffe_net[outputs[bottom]], kernel_size=8, stride=8, pad=0, pool=P.Pooling.AVE)
+            caffe_net[name] = L.Pooling(caffe_net[outputs[bottom]], pool=P.Pooling.AVE, global_pooling=True)
         
         elif layer_type=='ZeroPadding2D':
             padding=config['padding']
@@ -169,15 +170,18 @@ def convert(keras_model, caffe_net_file, caffe_params_file):
     
     #replace empty layer with input blob
     net_proto = input_str + '\n' + 'layer {' + 'layer {'.join(str(caffe_net.to_proto()).split('layer {')[2:])
+
+    #print net_proto
     
     f = open(caffe_net_file, 'w') 
     f.write(net_proto)
     f.close()
     
     caffe_model = caffe.Net(caffe_net_file, caffe.TEST)
-    
+    #print 'hello world'
     for layer in caffe_model.params.keys():
         for n in range(0, len(caffe_model.params[layer])):
+            #print layer
             caffe_model.params[layer][n].data[...] = net_params[layer][n]
 
     caffe_model.save(caffe_params_file)
